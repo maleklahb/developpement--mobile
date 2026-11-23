@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../database/database_helper.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -14,33 +15,65 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   bool _obscurePassword = true; // Pour masquer/afficher le mot de passe
 
-  void _handleLogin() {
-    final String email = _emailController.text.trim();
-    final String password = _passwordController.text;
+ 
+Future<void> _handleLogin() async {
+  final String email = _emailController.text.trim();
+  final String password = _passwordController.text;
 
-    if (email.isEmpty || password.isEmpty) {
-      _showErrorDialog('Veuillez remplir tous les champs');
-      return;
-    }
+  // Vérifier les champs
+  if (email.isEmpty || password.isEmpty) {
+    _showErrorDialog('Veuillez remplir tous les champs');
+    return;
+  }
 
-    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
-      _showErrorDialog('Veuillez entrer un email valide');
-      return;
-    }
+  // Vérifier le format email
+  if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+      .hasMatch(email)) {
+    _showErrorDialog('Veuillez entrer un email valide');
+    return;
+  }
+
+  // Afficher le chargement
+  setState(() {
+    _isLoading = true;
+  });
+
+  try {
+    // Vérifier les informations dans SQLite
+    final bool success =
+        await DatabaseHelper.instance.loginUser(
+      email,
+      password,
+    );
+
+    if (!mounted) return;
 
     setState(() {
-      _isLoading = true;
+      _isLoading = false;
     });
 
-    // Simulation de connexion
-    Future.delayed(const Duration(seconds: 2), () {
-      if (!mounted) return; // évite setState après dispose
-      setState(() {
-        _isLoading = false;
-      });
+    if (success) {
+      // Connexion réussie
       _showSuccessDialog();
+    } else {
+      // Identifiants incorrects
+      _showErrorDialog(
+        'Email ou mot de passe incorrect',
+      );
+    }
+  } catch (e) {
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = false;
     });
+
+    _showErrorDialog(
+      'Erreur lors de la connexion : $e',
+    );
   }
+}
+
 
   void _showErrorDialog(String message) {
     showDialog(

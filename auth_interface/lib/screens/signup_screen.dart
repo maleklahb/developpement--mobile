@@ -1,4 +1,6 @@
+
 import 'package:flutter/material.dart';
+import '../database/database_helper.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -8,11 +10,15 @@ class SignUpScreen extends StatefulWidget {
 }
 
 class _SignUpScreenState extends State<SignUpScreen> {
-  // Contrôleurs pour tous les champs
-  final TextEditingController _firstNameController = TextEditingController();
-  final TextEditingController _lastNameController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
+  // Contrôleurs des champs
+  final TextEditingController _firstNameController =
+      TextEditingController();
+  final TextEditingController _lastNameController =
+      TextEditingController();
+  final TextEditingController _emailController =
+      TextEditingController();
+  final TextEditingController _passwordController =
+      TextEditingController();
   final TextEditingController _confirmPasswordController =
       TextEditingController();
 
@@ -20,86 +26,135 @@ class _SignUpScreenState extends State<SignUpScreen> {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
 
-  // Messages d'erreur affichés en temps réel (null = pas d'erreur)
+  // Messages d'erreur
   String? _emailError;
   String? _passwordError;
   String? _confirmError;
 
-  static final RegExp _emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+  static final RegExp _emailRegex =
+      RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 
-  // ---------- Validation en temps réel ----------
+  // Validation email en temps réel
   void _validateEmail() {
     final email = _emailController.text.trim();
+
     setState(() {
-      _emailError = email.isNotEmpty && !_emailRegex.hasMatch(email)
+      _emailError = email.isNotEmpty &&
+              !_emailRegex.hasMatch(email)
           ? 'Email invalide'
           : null;
     });
   }
 
+  // Validation des mots de passe
   void _validatePasswords() {
     final p = _passwordController.text;
     final c = _confirmPasswordController.text;
+
     setState(() {
       _passwordError =
-          p.isNotEmpty && p.length < 6 ? 'Au moins 6 caractères' : null;
+          p.isNotEmpty && p.length < 6
+              ? 'Au moins 6 caractères'
+              : null;
+
       _confirmError = c.isNotEmpty && c != p
           ? 'Les mots de passe ne correspondent pas'
           : null;
     });
   }
 
-  // Le bouton est actif seulement si aucun message d'erreur n'est affiché
   bool get _hasErrors =>
-      _emailError != null || _passwordError != null || _confirmError != null;
+      _emailError != null ||
+      _passwordError != null ||
+      _confirmError != null;
 
-  // ---------- Inscription ----------
-  void _handleSignUp() {
-    final String firstName = _firstNameController.text.trim();
-    final String lastName = _lastNameController.text.trim();
-    final String email = _emailController.text.trim();
-    final String password = _passwordController.text;
-    final String confirmPassword = _confirmPasswordController.text;
+  // INSCRIPTION AVEC SQLITE
+  Future<void> _handleSignUp() async {
+    final String firstName =
+        _firstNameController.text.trim();
 
-    // Validation finale (l'utilisateur peut cliquer sans avoir rempli les champs)
+    final String lastName =
+        _lastNameController.text.trim();
+
+    final String email =
+        _emailController.text.trim();
+
+    final String password =
+        _passwordController.text;
+
+    final String confirmPassword =
+        _confirmPasswordController.text;
+
+    // 1. Vérifier les champs
     if (firstName.isEmpty ||
         lastName.isEmpty ||
         email.isEmpty ||
         password.isEmpty ||
         confirmPassword.isEmpty) {
-      _showErrorDialog('Veuillez remplir tous les champs');
+      _showErrorDialog(
+          'Veuillez remplir tous les champs');
       return;
     }
 
+    // 2. Vérifier l'email
     if (!_emailRegex.hasMatch(email)) {
-      _showErrorDialog('Veuillez entrer un email valide');
+      _showErrorDialog(
+          'Veuillez entrer un email valide');
       return;
     }
 
+    // 3. Vérifier la longueur du mot de passe
     if (password.length < 6) {
-      _showErrorDialog('Le mot de passe doit contenir au moins 6 caractères');
+      _showErrorDialog(
+          'Le mot de passe doit contenir au moins 6 caractères');
       return;
     }
 
+    // 4. Vérifier la confirmation
     if (password != confirmPassword) {
-      _showErrorDialog('Les mots de passe ne correspondent pas');
+      _showErrorDialog(
+          'Les mots de passe ne correspondent pas');
       return;
     }
 
-    // Simulation d'inscription
+    // 5. Activer le chargement
     setState(() {
       _isLoading = true;
     });
 
-    Future.delayed(const Duration(seconds: 2), () {
-      if (!mounted) return; // évite setState après dispose
+    try {
+      // 6. Enregistrer l'utilisateur dans SQLite
+      await DatabaseHelper.instance.registerUser(
+        firstName,
+        lastName,
+        email,
+        password,
+      );
+
+      if (!mounted) return;
+
       setState(() {
         _isLoading = false;
       });
+
+      // 7. Afficher le succès
       _showSuccessDialog();
-    });
+
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      // Email déjà utilisé ou autre erreur
+      _showErrorDialog(
+        'Cet email existe déjà ou une erreur est survenue.',
+      );
+    }
   }
 
+  // DIALOGUE ERREUR
   void _showErrorDialog(String message) {
     showDialog(
       context: context,
@@ -109,7 +164,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
           content: Text(message),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () =>
+                  Navigator.of(context).pop(),
               child: const Text('OK'),
             ),
           ],
@@ -118,6 +174,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
+  // DIALOGUE SUCCÈS
   void _showSuccessDialog() {
     showDialog(
       context: context,
@@ -132,8 +189,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.of(context).pop(); // Fermer le dialog
-                _navigateToLogin(); // Retourner à la connexion
+                Navigator.of(context).pop();
+                _navigateToLogin();
               },
               child: const Text('Se connecter'),
             ),
@@ -143,7 +200,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
-  // Retour à l'écran de connexion (named route)
+  // RETOUR À LOGIN
   void _navigateToLogin() {
     Navigator.pushReplacementNamed(context, '/login');
   }
@@ -152,22 +209,30 @@ class _SignUpScreenState extends State<SignUpScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[100],
+
       appBar: AppBar(
         title: const Text('Créer un compte'),
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
         elevation: 0,
       ),
+
       body: SafeArea(
         child: SingleChildScrollView(
           child: Padding(
             padding: const EdgeInsets.all(24.0),
+
             child: Column(
               children: [
                 const SizedBox(height: 20),
 
                 // Icône
-                const Icon(Icons.person_add, size: 60, color: Colors.blue),
+                const Icon(
+                  Icons.person_add,
+                  size: 60,
+                  color: Colors.blue,
+                ),
+
                 const SizedBox(height: 20),
 
                 // Titre
@@ -179,9 +244,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     color: Colors.blue,
                   ),
                 ),
+
                 const SizedBox(height: 30),
 
-                // Champ Prénom
+                // PRÉNOM
                 TextField(
                   controller: _firstNameController,
                   textInputAction: TextInputAction.next,
@@ -194,9 +260,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     fillColor: Colors.white,
                   ),
                 ),
+
                 const SizedBox(height: 15),
 
-                // Champ Nom
+                // NOM
                 TextField(
                   controller: _lastNameController,
                   textInputAction: TextInputAction.next,
@@ -209,9 +276,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     fillColor: Colors.white,
                   ),
                 ),
+
                 const SizedBox(height: 15),
 
-                // Champ Email (validation en temps réel)
+                // EMAIL
                 TextField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
@@ -227,9 +295,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     errorText: _emailError,
                   ),
                 ),
+
                 const SizedBox(height: 15),
 
-                // Champ Mot de passe (validation en temps réel)
+                // MOT DE PASSE
                 TextField(
                   controller: _passwordController,
                   obscureText: _obscurePassword,
@@ -247,7 +316,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       ),
                       onPressed: () {
                         setState(() {
-                          _obscurePassword = !_obscurePassword;
+                          _obscurePassword =
+                              !_obscurePassword;
                         });
                       },
                     ),
@@ -257,17 +327,16 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     errorText: _passwordError,
                   ),
                 ),
+
                 const SizedBox(height: 15),
 
-                // Champ Confirmation mot de passe (validation en temps réel)
+                // CONFIRMATION MOT DE PASSE
                 TextField(
                   controller: _confirmPasswordController,
                   obscureText: _obscureConfirmPassword,
                   textInputAction: TextInputAction.done,
                   onChanged: (_) => _validatePasswords(),
-                  onSubmitted: (_) {
-                    if (!_hasErrors) _handleSignUp();
-                  },
+                  onSubmitted: (_) => _handleSignUp(),
                   decoration: InputDecoration(
                     labelText: 'Confirmer le mot de passe',
                     hintText: 'Retapez votre mot de passe',
@@ -280,7 +349,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       ),
                       onPressed: () {
                         setState(() {
-                          _obscureConfirmPassword = !_obscureConfirmPassword;
+                          _obscureConfirmPassword =
+                              !_obscureConfirmPassword;
                         });
                       },
                     ),
@@ -290,17 +360,22 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     errorText: _confirmError,
                   ),
                 ),
+
                 const SizedBox(height: 30),
 
-                // Bouton d'inscription (désactivé s'il y a des erreurs)
+                // BOUTON INSCRIPTION
                 _isLoading
                     ? const CircularProgressIndicator()
                     : SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
-                          onPressed: _hasErrors ? null : _handleSignUp,
+                          onPressed: _hasErrors
+                              ? null
+                              : _handleSignUp,
                           child: const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 15),
+                            padding: EdgeInsets.symmetric(
+                              vertical: 15,
+                            ),
                             child: Text(
                               "S'inscrire",
                               style: TextStyle(fontSize: 18),
@@ -308,14 +383,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           ),
                         ),
                       ),
+
                 const SizedBox(height: 20),
 
-                // Lien pour retourner à la connexion
+                // RETOUR LOGIN
                 TextButton(
                   onPressed: _navigateToLogin,
                   child: const Text(
                     'Déjà un compte ? Se connecter',
-                    style: TextStyle(color: Colors.blue, fontSize: 16),
+                    style: TextStyle(
+                      color: Colors.blue,
+                      fontSize: 16,
+                    ),
                   ),
                 ),
               ],
@@ -326,14 +405,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
+  // LIBÉRER LES CONTRÔLEURS
   @override
   void dispose() {
-    // Nettoyer tous les contrôleurs
     _firstNameController.dispose();
     _lastNameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+
     super.dispose();
   }
 }
